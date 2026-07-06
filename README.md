@@ -123,8 +123,10 @@ stockés et délie les événements.
 ## Déploiement sur Render
 
 Le fichier [`render.yaml`](render.yaml) est un *blueprint* qui provisionne trois
-ressources : une base **PostgreSQL**, un **web service** Node (backend) et un
-**static site** (frontend Vue).
+ressources : une base **PostgreSQL** et deux **web services Docker** — le backend
+(`backend/Dockerfile`) et le frontend, servi par nginx (`frontend/Dockerfile`). Les
+deux services sont construits et exécutés tels quels, comme en local avec Docker
+Compose — pas de build "natif" côté Render.
 
 ### 1. Première mise en ligne (blueprint)
 
@@ -141,9 +143,12 @@ ressources : une base **PostgreSQL**, un **web service** Node (backend) et un
    | frontend | `VITE_API_BASE` | URL du backend + `/api`, ex. `https://objectifs-backend.onrender.com/api` |
    | backend | `GOOGLE_*` | *(optionnel)* identifiants OAuth + `GOOGLE_REDIRECT_URI` sur le domaine Render |
 
-   Après avoir défini `VITE_API_BASE`, relancez un déploiement du frontend (elle est
-   injectée au build). `DATABASE_SSL=true` et `DATABASE_URL` sont déjà câblés par le
-   blueprint.
+   Après avoir défini `VITE_API_BASE`, relancez un déploiement du frontend : Render
+   la transmet automatiquement comme *build arg* Docker (`ARG VITE_API_BASE` dans
+   `frontend/Dockerfile`), donc elle est figée dans le bundle Vite à la construction
+   de l'image. `DATABASE_SSL=true` et `DATABASE_URL` sont déjà câblés par le
+   blueprint. Le port d'écoute nginx est généré dynamiquement depuis la variable
+   `PORT` fournie par Render (`frontend/templates/default.conf.template`).
 
 > Pensez à mettre à jour l'URI de redirection OAuth dans Google Cloud avec le
 > domaine Render si vous utilisez la synchronisation.
