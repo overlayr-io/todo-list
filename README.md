@@ -122,38 +122,78 @@ stockés et délie les événements.
 
 ## Déploiement sur Render
 
-Le fichier [`render.yaml`](render.yaml) est un *blueprint* qui provisionne trois
-ressources : une base **PostgreSQL** et deux **web services Docker** — le backend
-(`backend/Dockerfile`) et le frontend, servi par nginx (`frontend/Dockerfile`). Les
-deux services sont construits et exécutés tels quels, comme en local avec Docker
-Compose — pas de build "natif" côté Render.
+Le compte Render gratuit ne supporte pas les *Blueprints* (`render.yaml`) — ce
+fichier reste dans le repo pour un compte payant, mais sur le plan gratuit il faut
+créer les trois ressources **manuellement** dans le dashboard. Les deux services
+sont des **web services Docker** (backend : `backend/Dockerfile`, frontend : nginx
+via `frontend/Dockerfile`) — même image qu'en local avec Docker Compose.
 
-### 1. Première mise en ligne (blueprint)
+### 1. Base de données
 
-1. Poussez le dépôt sur GitHub / GitLab.
-2. Render → **New + → Blueprint** → sélectionnez le dépôt. Render lit `render.yaml`
-   et crée la base + les deux services.
-3. Une fois les URLs attribuées, renseignez les variables croisées (marquées
-   `sync: false` dans le blueprint) dans le dashboard Render :
+**New + → PostgreSQL**
+- Name : `objectifs-db`, plan **Free**.
+- Une fois créée, notez l'**Internal Database URL** (onglet *Connect*) — c'est la
+  valeur de `DATABASE_URL` pour le backend.
 
-   | Service | Variable | Valeur |
-   |---------|----------|--------|
-   | backend | `CORS_ORIGIN` | URL du frontend, ex. `https://objectifs-frontend.onrender.com` |
-   | backend | `APP_BASE_URL` | idem (URL du frontend) |
-   | frontend | `VITE_API_BASE` | URL du backend + `/api`, ex. `https://objectifs-backend.onrender.com/api` |
-   | backend | `GOOGLE_*` | *(optionnel)* identifiants OAuth + `GOOGLE_REDIRECT_URI` sur le domaine Render |
+### 2. Backend (web service Docker)
 
-   Après avoir défini `VITE_API_BASE`, relancez un déploiement du frontend : Render
-   la transmet automatiquement comme *build arg* Docker (`ARG VITE_API_BASE` dans
-   `frontend/Dockerfile`), donc elle est figée dans le bundle Vite à la construction
-   de l'image. `DATABASE_SSL=true` et `DATABASE_URL` sont déjà câblés par le
-   blueprint. Le port d'écoute nginx est généré dynamiquement depuis la variable
-   `PORT` fournie par Render (`frontend/templates/default.conf.template`).
+**New + → Web Service** → connectez le repo GitHub.
+- **Runtime** : `Docker`.
+- **Root Directory** : `backend`.
+- **Dockerfile Path** : `backend/Dockerfile` (ou `./Dockerfile` si le root est déjà
+  `backend`).
+- **Plan** : Free.
+- **Health Check Path** : `/api/health`.
+- **Variables d'environnement** :
+
+  | Variable | Valeur |
+  |----------|--------|
+  | `NODE_ENV` | `production` |
+  | `PORT` | `4000` |
+  | `DATABASE_URL` | l'Internal Database URL notée ci-dessus |
+  | `DATABASE_SSL` | `true` |
+  | `RUN_MIGRATIONS` | `true` |
+  | `RUN_SEED` | `true` |
+  | `CORS_ORIGIN` | *(à renseigner après l'étape 3, avec l'URL du frontend)* |
+  | `APP_BASE_URL` | *(idem — URL du frontend)* |
+  | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | *(optionnel, sync Google)* |
+
+- Créez le service. Notez son URL une fois déployé, ex.
+  `https://objectifs-backend.onrender.com`.
+
+### 3. Frontend (web service Docker, nginx)
+
+**New + → Web Service** → même repo.
+- **Runtime** : `Docker`.
+- **Root Directory** : `frontend`.
+- **Dockerfile Path** : `frontend/Dockerfile`.
+- **Plan** : Free.
+- **Variables d'environnement** :
+
+  | Variable | Valeur |
+  |----------|--------|
+  | `VITE_API_BASE` | URL du backend + `/api`, ex. `https://objectifs-backend.onrender.com/api` |
+
+  Render transmet automatiquement cette variable comme *build arg* Docker
+  (`ARG VITE_API_BASE` dans `frontend/Dockerfile`), donc elle est figée dans le
+  bundle Vite à la construction de l'image — pas besoin de la redéfinir ailleurs.
+  Le port d'écoute nginx est généré dynamiquement depuis la variable `PORT` fournie
+  par Render (`frontend/templates/default.conf.template`).
+
+- Créez le service, notez son URL, ex. `https://objectifs-frontend.onrender.com`.
+
+### 4. Boucler les deux URLs
+
+Revenez sur le service **backend** et mettez à jour :
+- `CORS_ORIGIN` = URL du frontend
+- `APP_BASE_URL` = URL du frontend
+
+Sauvegarder déclenche automatiquement un redéploiement du backend.
 
 > Pensez à mettre à jour l'URI de redirection OAuth dans Google Cloud avec le
 > domaine Render si vous utilisez la synchronisation.
 
-### 2. Redéploiements — `npm run deploy`
+### 5. Redéploiements — `npm run deploy`
 
 Le `package.json` racine fournit des scripts pour rebuild et déclencher un déploiement
 Render **du dernier commit poussé** :
