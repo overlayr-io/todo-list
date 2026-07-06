@@ -1,0 +1,21 @@
+{
+  "name": "objectifs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Objectifs — task management app (Vue + Express + Postgres). Root scripts to build and deploy to Render.",
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "build": "npm run build:frontend",
+    "build:frontend": "npm --prefix frontend install && npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend install --omit=dev",
+    "build:all": "npm run build:backend && npm run build:frontend",
+    "deploy": "node scripts/deploy-render.mjs both",
+    "deploy:backend": "node scripts/deploy-render.mjs backend",
+    "deploy:frontend": "node scripts/deploy-render.mjs frontend",
+    "predeploy": "npm run build:frontend"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
